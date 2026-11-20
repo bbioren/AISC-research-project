@@ -21,7 +21,7 @@ The Project Summary Doc is late for CP1, so that comes first. The director has t
   - B: benchmark plan, expected outcome, who the audience is
   - C: prior work and where it falls short. You can pull a lot from the lit review in the ideation doc, but every citation needs a link.
 - [ ] Clone the repo, install it, and get `pytest` to pass. Steps are in the main README. Message the team channel once it works.
-- [ ] Read the README and [`assignments/README.md`](assignments/README.md).
+- [ ] Read the README, [`assignments/README.md`](assignments/README.md), and Parts 1-3 of [`GUIDE.md`](GUIDE.md) (what we're building, setup, and how branches and PRs work).
 - [ ] Read *The Complexity Trap* (Lindenbauer et al. 2025). It's the closest paper to ours. Be ready to explain what they found in a couple sentences at check-in.
 
 ## Who's doing what

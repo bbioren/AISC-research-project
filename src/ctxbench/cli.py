@@ -132,6 +132,48 @@ def cmd_attribute(a):
     (run_dir(cfg) / "attribution.json").write_text(json.dumps(out, indent=1))
 
 
+def fake_history(n_steps: int, obs_lines: int = 3):
+    """A made-up trajectory for trying out strategies: each step reads a file and gets its contents back."""
+    from ctxbench.messages import Turn
+
+    h = [Turn("system", "SYSTEM PROMPT", "system", 0, "system"), Turn("user", "TASK: fix the bug in utils.py", "task", 0, "task")]
+    for s in range(1, n_steps + 1):
+        h.append(Turn("assistant", f"Let me look at file{s}.py\n```bash\ncat file{s}.py\n```", "action", s, f"act-{s}"))
+        lines = "\n".join(f"file{s}.py:{i}: some code" for i in range(1, obs_lines + 1))
+        h.append(Turn("user", f"(exit code 0)\n{lines}", "observation", s, f"obs-{s}"))
+    return h
+
+
+def cmd_show_view(a):
+    import ast
+
+    from ctxbench.llm import ScriptedLLM
+    from ctxbench.strategies import make_strategy
+
+    params = {}
+    for kv in a.param:
+        k, _, v = kv.partition("=")
+        try:
+            params[k] = ast.literal_eval(v)
+        except (ValueError, SyntaxError):
+            params[k] = v
+    llm = ScriptedLLM(lambda msgs: "<summary would go here>")
+    strategy = make_strategy(a.strategy, llm=llm, **params)
+    history = fake_history(a.steps, a.obs_lines)
+    try:
+        view = strategy.build_view(history)
+    except NotImplementedError as e:
+        print(f"{a.strategy} isn't implemented yet: {e}")
+        return
+    print(f"history: {len(history)} turns, {sum(len(t.content) for t in history)} chars")
+    print(f"sent:    {len(view.messages)} messages, {sum(len(m['content']) for m in view.messages)} chars")
+    print(f"hidden: {view.hidden_ids}\nsummarized: {view.summarized_ids}")
+    print(f"extra tokens charged: {view.extra_prompt_tokens} prompt / {view.extra_completion_tokens} completion\n")
+    for i, m in enumerate(view.messages):
+        preview = m["content"].replace("\n", " | ")
+        print(f"[{i:>2}] {m['role']:<9} {preview[:100]}" + ("..." if len(preview) > 100 else ""))
+
+
 def load_dotenv(path: Path = ROOT / ".env") -> None:
     import os
 
@@ -151,6 +193,11 @@ def main():
     s = sub.add_parser("eval-cmd"); s.add_argument("config"); s.set_defaults(f=cmd_eval_cmd)
     s = sub.add_parser("report"); s.add_argument("config"); s.set_defaults(f=cmd_report)
     s = sub.add_parser("attribute"); s.add_argument("config"); s.set_defaults(f=cmd_attribute)
+    s = sub.add_parser("show-view", help="print what a strategy sends the model on a fake history (no Docker/API key)")
+    s.add_argument("--strategy", default="full_history"); s.add_argument("--steps", type=int, default=12)
+    s.add_argument("--obs-lines", type=int, default=3)
+    s.add_argument("--param", action="append", default=[], help="strategy param, e.g. --param window=3")
+    s.set_defaults(f=cmd_show_view)
     a = p.parse_args()
     a.f(a)
 

@@ -16,7 +16,7 @@ The other reason is that you'll see where these strategies fail. We're going to 
 | **B** | LLM summarization | OpenHands condenser (Wang et al., ICLR 2025), *The Complexity Trap* | `src/ctxbench/strategies/summarization.py` | Picking the model, cost estimate |
 | **C** | Masking + summarization hybrid **or** MemGPT-style paging | *The Complexity Trap*, MemGPT (Packer et al. 2023) | `src/ctxbench/strategies/hybrid.py` | Task subset, failure analysis |
 
-The comment at the top of each file has a list of what to look for in the paper.
+The comment at the top of each file has a list of what to look for in the paper. For how to actually do it (setup, branches, PRs, testing), follow [`../GUIDE.md`](../GUIDE.md).
 
 ## What to turn in
 

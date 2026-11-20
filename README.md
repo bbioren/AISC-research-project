@@ -2,7 +2,7 @@
 
 This is our AISC research project on context management for coding agents. The repo is a test setup where the agent loop, the model and the tasks stay the same, and the only thing we swap out is how the agent's context gets managed.
 
-**New here?** Read [`docs/WORKPLAN.md`](docs/WORKPLAN.md) first for who's doing what and when. The current assignment is in [`docs/assignments/README.md`](docs/assignments/README.md).
+**New here?** Read [`docs/WORKPLAN.md`](docs/WORKPLAN.md) first for who's doing what and when. The current assignment is in [`docs/assignments/README.md`](docs/assignments/README.md), and [`docs/GUIDE.md`](docs/GUIDE.md) walks you through doing it step by step, git and PRs included.
 
 ## The question
 
@@ -52,6 +52,7 @@ For real runs you'll need Docker running and a lot of free disk for the SWE-benc
 ## Running things
 
 ```bash
+ctxbench show-view --strategy masking --steps 20         # see what a strategy sends the model (no Docker or API key needed)
 ctxbench subset --n 50 --seed 0                          # only once, then commit configs/subset_50_seed0.txt
 ctxbench run configs/experiment.yaml --limit 2 --strategy masking   # always try 2 tasks first
 ctxbench run configs/experiment.yaml --strategy masking  # full run for one strategy (picks up where it left off)
