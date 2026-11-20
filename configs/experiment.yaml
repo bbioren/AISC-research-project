@@ -1,0 +1,37 @@
+# Main experiment config. Copy this file for variants (e.g. pilot.yaml) rather than editing it mid-run.
+run_name: pilot-v1
+subset: configs/subset_50_seed0.txt   # create with: ctxbench subset --n 50 --seed 0
+dataset: princeton-nlp/SWE-bench_Verified
+
+# One model for all conditions. Pick a cheap one for the pilot; the comparison is
+# between strategies, so absolute resolve rate matters less than a fixed model.
+model:
+  model: gpt-4o-mini        # any LiteLLM model string
+  temperature: 0.0
+  max_tokens: 2048
+summarizer_model:           # used only by the summarization strategy
+  model: gpt-4o-mini
+  temperature: 0.0
+  max_tokens: 1024
+
+agent:
+  step_limit: 50
+  cost_limit: 1.0           # USD per instance; hard stop
+  obs_max_chars: 10000
+  cmd_timeout: 120
+
+# SWE-bench instance images (prebuilt on Docker Hub). VERIFY against the swebench
+# version you install before the first real run.
+image_template: "swebench/sweb.eval.x86_64.{instance_id_1776}:latest"
+
+# Every condition runs on the same instances with the same model and agent loop.
+# Each owner sets their params to the paper's values (cite them in docs/assignments/).
+strategies:
+  - name: full_history                # baseline: no context management
+  - name: masking                     # Assignment A
+    params: {}                        # e.g. {window: <paper value>}
+  - name: summarization               # Assignment B
+    params: {}
+  - name: hybrid                      # Assignment C (rename to paging if you pick MemGPT)
+    params: {}
+  # Our novel method gets added here after the Dec 1 decision.

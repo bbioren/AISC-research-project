@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+.DS_Store
+
+# Raw run outputs are large; commit summary.md / attribution.json / reports deliberately.
+results/*/*/
+results/**/*.predictions.jsonl
+logs/
