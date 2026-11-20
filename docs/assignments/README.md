@@ -1,61 +1,47 @@
-# Assignment 1: Reproduce a context-management strategy from the literature
+# Assignment 1: Reproduce a strategy from the literature
 
-**Due:** write-up + code by **Wed Dec 3** (checkpoints below). **CP2:** Thu Dec 4.
+Due **Wednesday Dec 3**. CP2 is the next day.
 
-## Why we're doing this
+## Why
 
-Before we can claim anything new, we need the methods we're comparing against
-working in *our* setup: same agent, same model, same 50 tasks. Each of you
-reproduces one published strategy. Together, your three results become our
-benchmark table. And while you implement them, you'll see where each one breaks.
-That evidence is what we'll use to choose our novel method on **Mon Dec 1**.
+We can't claim we did something new until the existing methods are running in our own setup, with the same agent, model and tasks. So each of you is reproducing one published strategy. Put together, your three results are our benchmark table.
 
-## Who does what
+The other reason is that you'll see where these strategies fail. We're going to use that to pick our own method on Monday Dec 1, so pay attention to it.
 
-| | Strategy | Paper(s) | Code goes in | Also owns |
+## Assignments
+
+| | Strategy | Papers | File | Also in charge of |
 |---|---|---|---|---|
-| **A** | Observation masking | SWE-agent (Yang et al., 2024); *The Complexity Trap* (Lindenbauer et al., 2025) | `src/ctxbench/strategies/masking.py` | Docker + SWE-bench setup |
-| **B** | LLM summarization | OpenHands condenser (Wang et al., ICLR 2025); *The Complexity Trap* | `src/ctxbench/strategies/summarization.py` | Choosing the model + cost estimate |
-| **C** | Hybrid masking + summarization **or** MemGPT-style paging | *The Complexity Trap*; MemGPT (Packer et al., 2023) | `src/ctxbench/strategies/hybrid.py` | The task subset + failure-analysis tooling |
+| **A** | Observation masking | SWE-agent (Yang et al. 2024), *The Complexity Trap* (Lindenbauer et al. 2025) | `src/ctxbench/strategies/masking.py` | Docker + SWE-bench setup |
+| **B** | LLM summarization | OpenHands condenser (Wang et al., ICLR 2025), *The Complexity Trap* | `src/ctxbench/strategies/summarization.py` | Picking the model, cost estimate |
+| **C** | Masking + summarization hybrid **or** MemGPT-style paging | *The Complexity Trap*, MemGPT (Packer et al. 2023) | `src/ctxbench/strategies/hybrid.py` | Task subset, failure analysis |
 
-Each strategy file's docstring tells you exactly what to find in the paper.
+The comment at the top of each file has a list of what to look for in the paper.
 
-## What you hand in
+## What to turn in
 
-1. **Paper summary** (about 1 page), in `docs/assignments/<you>.md` using the template there:
-   - what the method does and why
-   - the exact settings the paper used, with the page or section for each
-   - anything the paper leaves unspecified, and what you chose instead
-2. **Implementation:** your strategy in its file, with every test in `tests/test_contract.py` and
-   `tests/test_assignments.py` passing for it. Add at least 2 tests of your own for the
-   paper-specific settings.
-3. **Results:** your strategy run on the 50-task subset (same model as everyone),
-   scored with SWE-bench, in the shared results table (`ctxbench report`).
-4. **Comparison to the paper:** does the trend match? For example, is masking cheaper than full
-   history at a similar resolve rate? We don't expect the same absolute numbers (different model,
-   subset and agent); we do expect the same *direction*. If it doesn't match, say why you think so.
-5. **Failure notes:** read **5 failed runs** of your strategy end to end. For each, write one line
-   on what went wrong, and whether it lost information it needed later (which observation, and what
-   was in it). These notes are the input to the Dec 1 novelty decision.
+1. **Paper summary**, about a page, in `docs/assignments/<yours>.md` (use the template). Explain how the method works, list every setting the paper used with the page or section it's from, and note anything the paper doesn't specify plus what you went with instead.
+2. **Your implementation.** All the tests in `tests/test_contract.py` and `tests/test_assignments.py` should pass for your strategy. Add at least 2 of your own that check the paper-specific settings.
+3. **Results** on the 50-task subset, using the same model as everyone else, scored with SWE-bench. `ctxbench report` puts them in the shared table.
+4. **How it compares to the paper.** We're using a different model and a smaller set of tasks, so the numbers won't match. The direction should, though. For example, masking should come out cheaper than full history without resolving a lot fewer tasks. If yours doesn't line up, give your best guess why.
+5. **Failure notes.** Pick 5 runs where your strategy failed and read the whole trajectory. For each one write a line about what went wrong and whether the agent had lost information it needed (which observation, and what was in it). These are what we'll be looking at on Dec 1.
 
-## Checkpoints
+## Dates
 
-| Date | Checkpoint |
+| When | What |
 |---|---|
-| Sun Nov 23 | Repo set up, `pytest` passes; your Project Summary Doc section drafted (Sat) |
-| Tue Nov 25 | Paper read; settings table filled in your write-up. **C:** choice of hybrid vs paging made. **A:** 2 tasks run end to end in Docker |
-| Nov 26–28 | Thanksgiving: no expectations |
-| Sun Nov 30 | Implementation done and tests pass; smoke-tested on 2 real tasks |
-| **Mon Dec 1** | **Novelty decision meeting:** each person brings their failure notes so far (aim for 3+) |
-| Wed Dec 3 | Full 50-task run scored; write-up complete |
+| Sun Nov 23 | Repo set up, tests pass. Summary doc section drafted by Sat |
+| Tue Nov 25 | Paper read, settings table done. A: 2 tasks running in Docker. C: picked hybrid or paging |
+| Nov 26-28 | Thanksgiving |
+| Sun Nov 30 | Implementation done, tests pass, tried on 2 real tasks |
+| **Mon Dec 1** | **Meeting to choose our method.** Bring your failure notes (3+ if you can) |
+| Wed Dec 3 | 50-task run scored, write-up done |
 
-## Rules
+## Ground rules
 
-- **Don't modify the shared harness** (`agent.py`, `env.py`, `llm.py`, `messages.py`) to make your
-  strategy work. If you need a change, post in the team channel first, since it affects everyone's numbers.
-- Same model, same subset, same agent settings for every condition. Those are in `configs/experiment.yaml`.
-- One branch and pull request per person. Someone else on the team reviews it before merge.
-- No API keys in git (`.env` only). Ask Ben before any run expected to cost over $10.
-- Stuck for 24 hours? Post in the team channel with what you tried.
-- Use AI tools to help you code if you want, but you must be able to explain every line in review,
-  and every paper setting must come from the paper itself, with a page number.
+- Don't change the shared code (`agent.py`, `env.py`, `llm.py`, `messages.py`) to get your strategy working. If you think it needs a change, bring it up in the team channel first, since it changes everyone's numbers.
+- Everyone uses the same model, task subset and agent settings. They're in `configs/experiment.yaml`.
+- One branch and one PR per person, and someone else reviews it before it gets merged.
+- Keep API keys in `.env`. Ask Ben before running anything over $10.
+- If you've been stuck for a day, post in the team channel with what you tried.
+- You can use AI tools to help write code. You still have to be able to explain every line when someone reviews it, and the paper settings have to come from the actual paper with a page number.

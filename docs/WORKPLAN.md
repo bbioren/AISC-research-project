@@ -1,84 +1,70 @@
-# Work plan to CP2 (Dec 4)
+# Plan through CP2 (Dec 4)
 
-*As of Nov 20, 2026*
+Last updated Nov 20.
 
-## Goal: reproduced baselines and a chosen novel method by Dec 4
+## Where we're headed
 
-CP2 (First Prototype) is due **Thursday, Dec 4**. To pass it we need two things:
-our benchmark exists with real numbers, and our novel method is in development.
+CP2 is due Thursday Dec 4. By then we need our baseline numbers and we need to have started on our own method.
 
-- **Baselines:** each person reproduces one published context-management strategy in this repo.
-  You run it on our fixed 50-task SWE-bench Verified subset and get its resolve rate, tokens and cost.
-- **Novel method chosen and started:** on **Mon Dec 1** we pick our novel method, based on where
-  the reproduced strategies failed, and start building it.
+Here's how we get there. Each of you is going to reproduce one context management strategy from a paper we've already read, inside this repo, and run it on our 50 SWE-bench Verified tasks. That gives us the baselines. Then on Monday Dec 1 we meet and pick our novel method based on where those strategies broke.
 
-Working novelty until Dec 1: *recover the information that masking throws away, and attribute
-each failure to the specific information that was lost.* Your failure notes decide whether we
-keep it, sharpen it or replace it.
+For now the working idea is still the one from the summary doc: get back the information that masking throws away, and figure out which lost information actually caused each failure. What you find while reproducing these papers might change that, and that's fine. That's kind of the point.
 
-Thanksgiving is Nov 26–28, so plan on about 7 working days.
+Thanksgiving is Nov 26-28 so realistically we have about a week of work time. Don't plan on doing anything over the break.
 
-## Everyone, by Sunday, Nov 23
+## This weekend (everyone)
 
-The Project Summary Doc is overdue for CP1. The director has to approve it before we build, so it comes first.
+The Project Summary Doc is late for CP1, so that comes first. The director has to approve it before we can really start building.
 
-- [ ] **Project Summary Doc, one section each.** Draft your part in our team Drive folder by
-  **Sat Nov 22** so Ben can edit and submit Sunday.
-  - Person A: methods and datasets, technical milestones
-  - Person B: benchmark plan, outcome, audience
-  - Person C: prior work and its weak points (adapt the lit review from the Ideation Doc; add a link for every citation)
-- [ ] **Repo setup.** Clone, install, and get `pytest` passing (see the main README). Post in the team channel when you're green.
-- [ ] **Read the README** and [`assignments/README.md`](assignments/README.md).
-- [ ] **Read *The Complexity Trap*** (Lindenbauer et al., 2025). It's the result we're reproducing.
-  Come to the next check-in able to say what it found in two sentences.
+- [ ] Write your section of the summary doc in the team Drive folder by **Saturday Nov 22**. I'll clean it up and submit Sunday.
+  - A: methods + datasets, technical milestones
+  - B: benchmark plan, expected outcome, who the audience is
+  - C: prior work and where it falls short. You can pull a lot from the lit review in the ideation doc, but every citation needs a link.
+- [ ] Clone the repo, install it, and get `pytest` to pass. Steps are in the main README. Message the team channel once it works.
+- [ ] Read the README and [`assignments/README.md`](assignments/README.md).
+- [ ] Read *The Complexity Trap* (Lindenbauer et al. 2025). It's the closest paper to ours. Be ready to explain what they found in a couple sentences at check-in.
 
-## Who owns what
+## Who's doing what
 
-Each person reproduces one strategy from the literature, using the same model, tasks and agent.
-Together the three results form our benchmark table. Full spec: [`assignments/README.md`](assignments/README.md).
+Everyone uses the same model, tasks and agent loop so the numbers are actually comparable. Details for the assignment are in [`assignments/README.md`](assignments/README.md).
 
-| | Person A | Person B | Person C |
+| | A | B | C |
 |---|---|---|---|
 | **Name** | | | |
-| **Reproduces** | Observation masking | LLM summarization | Hybrid masking + summarization, or MemGPT-style paging (pick by Nov 25) |
-| **Papers** | SWE-agent (Yang et al., 2024); *The Complexity Trap* (Lindenbauer et al., 2025) | OpenHands condenser (Wang et al., ICLR 2025); *The Complexity Trap* | *The Complexity Trap*; MemGPT (Packer et al., 2023) |
+| **Strategy** | Observation masking | LLM summarization | Masking + summarization hybrid, or MemGPT-style paging (your call, decide by Nov 25) |
+| **Read** | SWE-agent (Yang et al. 2024), *The Complexity Trap* | OpenHands condenser (Wang et al., ICLR 2025), *The Complexity Trap* | *The Complexity Trap*, MemGPT (Packer et al. 2023) |
 | **Code** | `strategies/masking.py` | `strategies/summarization.py` | `strategies/hybrid.py` |
 | **Write-up** | `assignments/A_masking.md` | `assignments/B_summarization.md` | `assignments/C_third_strategy.md` |
-| **Also owns** | Docker + SWE-bench setup | Choosing the model + cost estimate | Task subset + failure-analysis tooling |
+| **Also in charge of** | Getting Docker + SWE-bench working | Picking the model, estimating cost | The task subset, failure analysis script |
 
-## What you hand in, and when
+## What's due
 
-Everyone hands in the same five things by **Wed Dec 3**:
+By **Wednesday Dec 3** each of you should have:
 
-- [ ] **Paper summary (about 1 page):** what the method does and the exact settings the paper
-  used, each with a page or section number.
-- [ ] **Implementation:** your strategy in its file, with all the contract and assignment tests
-  passing, plus at least 2 tests of your own.
-- [ ] **Results:** your strategy run on the 50-task subset and scored with SWE-bench.
-- [ ] **Comparison to the paper:** does your trend go the same direction as theirs? If not, why do you think it doesn't?
-- [ ] **Failure notes:** 5 failed runs read end to end. For each, what went wrong, and whether it
-  lost information it needed later.
+- [ ] A short summary of your paper (~1 page) with the exact settings they used and where in the paper you found each one
+- [ ] Your strategy implemented, all the tests passing, plus at least 2 tests you wrote yourself
+- [ ] Results from running it on the 50 tasks, scored with SWE-bench
+- [ ] A comparison with the paper. We won't match their numbers exactly (different model, fewer tasks) but the trend should go the same way. If it doesn't, say why you think that is.
+- [ ] Notes on 5 runs that failed. Read the whole trajectory and write down what went wrong and whether the agent lost something it needed later.
 
-| Date | Checkpoint |
+Dates along the way:
+
+| When | What |
 |---|---|
-| Sat Nov 22 | Your Project Summary Doc section drafted |
-| Sun Nov 23 | Repo set up, `pytest` passes |
-| Tue Nov 25 | Paper read and settings table filled in. **A:** 2 tasks run in Docker. **C:** hybrid vs. paging decided. **B:** model shortlist |
-| Nov 26–28 | Thanksgiving: no expectations |
-| Sun Nov 30 | Implementation done, tests pass, smoke-tested on 2 real tasks |
-| **Mon Dec 1** | **Novelty decision meeting:** bring your failure notes so far (aim for 3+) |
-| Wed Dec 3 | Full 50-task run scored; write-up complete |
+| Sat Nov 22 | Summary doc section drafted |
+| Sun Nov 23 | Repo set up and tests passing |
+| Tue Nov 25 | Paper read, settings table filled in. A has 2 tasks running in Docker, B has a shortlist of models, C has picked hybrid or paging |
+| Nov 26-28 | Thanksgiving, nothing due |
+| Sun Nov 30 | Strategy implemented, tests passing, tried on 2 real tasks |
+| **Mon Dec 1** | **Meeting to pick our method.** Bring whatever failure notes you have (3+ ideally) |
+| Wed Dec 3 | Full run done and scored, write-up finished |
 
-## How we work
+## How we're working
 
-- **Weekly check-in:** each person answers three things: what you finished (with the number or file),
-  what's next, and what's blocking you.
-- **24-hour rule:** stuck for more than a day? Post in the team channel with what you tried.
-  Setup problems are the easiest way to lose a week quietly.
-- **Where things go:** code, results and write-ups in this repo, one branch and pull request per
-  task, reviewed by a teammate. Drafts for the Project Summary Doc go in the team Drive folder.
-- **Don't change the shared harness** (`agent.py`, `env.py`, `llm.py`, `messages.py`) without asking
-  in the team channel. It affects everyone's numbers.
-- **Never commit API keys.** They go in `.env`, which git ignores.
-- **Spend:** don't start a run expected to cost over $10 without checking with Ben first.
-- **#wins:** post the baseline table there when it lands.
+- At check-in I'll ask everyone the same three things: what you got done (show me the file or the number), what's next, and what's blocking you.
+- If you're stuck for more than a day, post in the team channel and say what you've tried. Setup issues especially can eat a whole week if nobody hears about them.
+- Code, results and write-ups go in this repo. Make a branch and a PR for each task and have someone else on the team review it. Summary doc drafts go in Drive.
+- Please don't edit `agent.py`, `env.py`, `llm.py` or `messages.py` without asking first. Changes there affect everyone's results.
+- API keys go in `.env` and never get committed.
+- Check with me before starting anything that'll cost more than $10.
+- When the baseline table is done, post it in #wins.

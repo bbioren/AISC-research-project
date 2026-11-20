@@ -1,37 +1,38 @@
-# <Strategy name>: reproduction write-up
+# <Strategy>: reproduction notes
 
-**Author:** <name> · **Strategy file:** `src/ctxbench/strategies/<file>.py`
+Author: <name>. Code: `src/ctxbench/strategies/<file>.py`
 
-## 1. Method in one paragraph
+## How it works
 
-What it does to the agent's context, and why the authors think it helps.
+A paragraph on what the strategy does to the agent's context and why the authors think it helps.
 
-## 2. Settings from the paper
+## Settings
 
-| Setting | Paper value | Source (paper, page/section) | Our value | Why different (if it is) |
+| Setting | Paper's value | Where in the paper | What we used | Why it's different (if it is) |
 |---|---|---|---|---|
 | e.g. observation window | | | | |
 | | | | | |
 
-Unspecified in the paper, so we chose:
+Things the paper didn't say, and what we picked:
 - ...
 
-## 3. Results on our 50-task subset
+## Results (50 tasks)
 
-| Condition | Resolved / 50 | Mean prompt tokens | Mean $ per task | $ per resolved task |
+| Condition | Resolved / 50 | Avg prompt tokens | Avg $ per task | $ per resolved task |
 |---|---|---|---|---|
 | full_history | | | | |
 | <yours> | | | | |
 
-**Paper's reported trend:** ...
-**Ours matches?** yes / no / partly, and why.
+What the paper found:
 
-## 4. Failure notes (5 failed runs)
+Does ours match? Yes / no / sort of, and why:
 
-| Instance | What went wrong (1 line) | Info lost? Which obs, what was in it |
+## Failures (5 runs)
+
+| Instance | What went wrong | Did it lose info it needed? Which observation, what was in it |
 |---|---|---|
 | | | |
 
-## 5. Ideas
+## Ideas
 
-What would have prevented these failures? (Bring these to the Dec 1 meeting.)
+What would have stopped these failures? Bring this to the Dec 1 meeting.

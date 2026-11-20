@@ -1,60 +1,41 @@
-# What does a coding agent forget? Context management on SWE-bench
+# What does a coding agent forget?
 
-AISC Research Program project. This repo is a controlled testbed: one agent loop,
-one model, one fixed task subset. The **only** thing that changes between
-experimental conditions is the context-management strategy.
+This is our AISC research project on context management for coding agents. The repo is a test setup where the agent loop, the model and the tasks stay the same, and the only thing we swap out is how the agent's context gets managed.
 
-> **Start here:** [`docs/WORKPLAN.md`](docs/WORKPLAN.md) has the plan to CP2: who owns what, and what's due when.
-> [`docs/assignments/README.md`](docs/assignments/README.md) has the full spec for the current assignment
-> (each person reproduces one strategy from the literature, due Dec 3).
+**New here?** Read [`docs/WORKPLAN.md`](docs/WORKPLAN.md) first for who's doing what and when. The current assignment is in [`docs/assignments/README.md`](docs/assignments/README.md).
 
 ## The question
 
-Coding agents pile up context quickly, and most of it is tool output.
-Prior work compares ways of cutting it:
+Coding agents build up a lot of context as they work, and most of it is output from the commands they run. People have tried a few ways of cutting it down:
 
-- **Observation masking** (hide old tool outputs)
-- **LLM summarization** (compress old turns with a model)
-- **Hybrids** of the two
+- **Observation masking:** hide older command outputs
+- **LLM summarization:** have a model summarize older turns
+- some mix of the two
 
-The Complexity Trap (Lindenbauer et al., 2025) found that masking roughly halves cost
-while matching or beating summarization on SWE-bench Verified. So re-running that comparison
-is our **benchmark, not our contribution**.
+*The Complexity Trap* (Lindenbauer et al. 2025) compared these on SWE-bench Verified. They found masking costs about half as much and does as well as summarization, sometimes better. So just running that comparison again isn't a contribution. It's our baseline.
 
-**Novelty: decided Mon Dec 1.** We'll choose it from what the reproduced strategies
-get wrong: which information they lose and which failures that causes. Current working
-direction (from the Project Summary Doc): *recover the information masking throws away,
-and attribute each failure to the specific information that was lost.*
-`src/ctxbench/attribution.py` already does a first pass at that failure analysis.
+We're picking our actual novel method on **Monday Dec 1**, based on what goes wrong with the strategies we reproduce. The working idea right now (from the summary doc) is to recover the information masking throws away, and to work out which lost information caused each failure. `src/ctxbench/attribution.py` has a first attempt at that second part.
 
-## Benchmark plan
+## What we're comparing
 
-| Condition | What it is | Source | Owner |
+| Condition | What it does | From | Who |
 |---|---|---|---|
-| `full_history` | No context management; upper bound on cost | — | done |
-| `masking` | Hide all but recent tool outputs | SWE-agent; *The Complexity Trap* | A |
-| `summarization` | LLM summary of older turns | OpenHands condenser; *The Complexity Trap* | B |
-| `hybrid` (or `paging`) | Masking + summarization, or MemGPT-style paging | *The Complexity Trap*; MemGPT | C |
-| *ours* | Decided Dec 1 | — | team |
+| `full_history` | Nothing, the agent sees everything. Most expensive | n/a | done |
+| `masking` | Hides all but the most recent command outputs | SWE-agent, *The Complexity Trap* | A |
+| `summarization` | An LLM summarizes older turns | OpenHands condenser, *The Complexity Trap* | B |
+| `hybrid` / `paging` | Masking + summarization, or MemGPT-style paging | *The Complexity Trap*, MemGPT | C |
+| ours | TBD Dec 1 | | everyone |
 
-**Metrics:**
-- **Primary:** resolve rate and **cost per resolved task**.
-- **Secondary:**
-  - total and peak prompt tokens, steps
-  - failure-attribution labels (`never_seen` / `seen_then_hidden` / `seen_visible`) and rediscovery counts
+The main things we care about are **resolve rate** and **cost per resolved task**. We also track total and peak prompt tokens, number of steps, and the failure labels from the attribution script. We're not using wall-clock time because API latency makes it too noisy.
 
-We report tokens and $ rather than wall-clock time, because API latency makes time too noisy to compare.
+One sanity check before trusting any results: masking vs full history should come out the same way it did in *The Complexity Trap*. If it doesn't, something is probably wrong with our setup.
 
-**Sanity check:** our masking-vs-full-history gap should go in the same direction as the
-Complexity Trap's. If it doesn't, fix the harness before trusting anything else.
+## Scope
 
-## Scope and budget
-
-- **Tasks:** a fixed random 50-instance subset of SWE-bench Verified (`ctxbench subset --n 50 --seed 0`).
-- **Model:** one inexpensive model for every condition (`configs/experiment.yaml`).
-- **Budget:** `agent.cost_limit` caps each task at $1. Ask Ben before any run expected to cost over $10.
-- **Dataset caveat:** SWE-bench Verified has contamination and test-quality concerns. We compare
-  conditions *relative to each other* on the same tasks, which is robust to that. It goes in Limitations.
+- **Tasks:** 50 random instances from SWE-bench Verified, picked once with a fixed seed (`ctxbench subset --n 50 --seed 0`) and committed so we all use the same ones.
+- **Model:** one cheap model for every condition, set in `configs/experiment.yaml`.
+- **Cost:** each task stops at $1 (`agent.cost_limit`). Ask Ben before anything that'll cost over $10 total.
+- SWE-bench Verified has known problems with contamination and test quality. Since we compare conditions against each other on the same tasks, that matters less for us, but it should go in the limitations section.
 
 ## Setup
 
@@ -62,73 +43,69 @@ Complexity Trap's. If it doesn't, fix the harness before trusting anything else.
 git clone https://github.com/bbioren/AISC-research-project && cd AISC-research-project
 uv venv && source .venv/bin/activate        # or: python -m venv .venv && source .venv/bin/activate
 uv pip install -e ".[dev,eval,analysis]"     # or: pip install -e ".[dev,eval,analysis]"
-cp .env.example .env                         # add your API key; never commit .env
-pytest                                       # offline; unimplemented strategies show as "skipped"
+cp .env.example .env                         # put your API key in here, don't commit it
+pytest                                       # runs offline; strategies nobody's written yet show up as skipped
 ```
 
-Real runs need **Docker** running, with enough disk for SWE-bench images (budget about 100 GB).
+For real runs you'll need Docker running and a lot of free disk for the SWE-bench images. Figure on around 100 GB.
 
-## Workflow
+## Running things
 
 ```bash
-ctxbench subset --n 50 --seed 0                          # once; commit configs/subset_50_seed0.txt
-ctxbench run configs/experiment.yaml --limit 2 --strategy masking   # smoke test first!
-ctxbench run configs/experiment.yaml --strategy masking  # full run for one condition (resumable)
-ctxbench eval-cmd configs/experiment.yaml                # prints SWE-bench scoring commands; run them
-ctxbench report configs/experiment.yaml                  # -> results/<run>/summary.md
-ctxbench attribute configs/experiment.yaml               # -> results/<run>/attribution.json
+ctxbench subset --n 50 --seed 0                          # only once, then commit configs/subset_50_seed0.txt
+ctxbench run configs/experiment.yaml --limit 2 --strategy masking   # always try 2 tasks first
+ctxbench run configs/experiment.yaml --strategy masking  # full run for one strategy (picks up where it left off)
+ctxbench eval-cmd configs/experiment.yaml                # prints the SWE-bench scoring commands to run
+ctxbench report configs/experiment.yaml                  # writes results/<run>/summary.md
+ctxbench attribute configs/experiment.yaml               # writes results/<run>/attribution.json
 ```
 
-## Layout
+## What's where
 
 ```
 src/ctxbench/
-  agent.py            bash-only agent loop (identical across conditions; don't edit without asking)
-  messages.py         Turn / ContextView: full history is kept; strategies only choose the view
+  agent.py            the agent loop, same for every condition (ask before changing)
+  messages.py         Turn and ContextView. The full history is always kept, strategies just pick what the model sees
   strategies/         full_history (done), masking (A), summarization (B), hybrid (C)
-  env.py              DockerEnv (SWE-bench images) and LocalEnv (toy smoke tests only)
-  llm.py              LiteLLM wrapper with token/cost accounting; ScriptedLLM for tests
-  data.py             SWE-bench loading, fixed subsets, patch parsing
-  metrics.py          results table
-  attribution.py      failure attribution
-  cli.py              `ctxbench` command
-docs/assignments/     current assignment + each person's write-up
-configs/              experiment config + committed task subset
-results/              run outputs (raw trajectories gitignored; summaries committed)
-tests/                test_contract.py (rules for every strategy), test_assignments.py, test_harness.py
+  env.py              DockerEnv for SWE-bench, LocalEnv for quick tests on a toy repo
+  llm.py              wrapper around LiteLLM that tracks tokens and cost; ScriptedLLM for tests
+  data.py             loading SWE-bench, the task subset, reading patches
+  metrics.py          builds the results table
+  attribution.py      failure analysis
+  cli.py              the ctxbench command
+docs/                 work plan, assignment, everyone's write-ups
+configs/              experiment settings and the task subset
+results/              run outputs (raw trajectories aren't committed, summaries are)
+tests/                test_contract.py (rules every strategy follows), test_assignments.py, test_harness.py
 ```
 
 ## Adding a strategy
 
-1. Subclass `ContextStrategy` and implement `build_view(history) -> ContextView`.
-2. Register it in `strategies/__init__.py` and add it to `configs/experiment.yaml`.
-3. `tests/test_contract.py` automatically checks it against the rules every strategy must follow.
-   Add tests for its specific behavior.
+Subclass `ContextStrategy` and write `build_view(history) -> ContextView`. Then add it to the registry in `strategies/__init__.py` and to `configs/experiment.yaml`. `tests/test_contract.py` will automatically check it against the rules every strategy has to follow. You should still add tests for whatever's specific to yours.
 
 ## Before the first real run
 
-- Check `image_template` in `configs/experiment.yaml` against the installed `swebench` version.
-- Pick the model (B), and agree on a total budget with Ben.
+- Check that `image_template` in `configs/experiment.yaml` matches the image names for the `swebench` version you installed.
+- B picks the model, and we agree on a total budget.
 
-## Milestones
+## Timeline
 
-| Checkpoint | Date | Done looks like |
+| | When | Done means |
 |---|---|---|
-| CP1 | Nov 13 (overdue) | Project Summary Doc submitted and approved |
-| Assignment 1 | Dec 3 | 3 strategies reproduced, run on 50 tasks, written up |
-| Novelty decision | Dec 1 | One novel method chosen from the failure notes |
-| CP2 | Dec 4 | Baselines exist with numbers; novel method in development |
-| CP3 | Jan 22 target / Jan 29 | All conditions run, failure analysis checked by hand, charts |
-| CP4 | Feb 12 target / Feb 19 | 6-page IEEE paper |
+| CP1 | Nov 13 (late) | Summary doc submitted and approved |
+| Method decision | Mon Dec 1 | We've picked our method based on the failure notes |
+| Assignment 1 | Wed Dec 3 | 3 strategies reproduced, run on 50 tasks, written up |
+| CP2 | Thu Dec 4 | Baseline numbers exist, our method is underway |
+| CP3 | Jan 22 (hard deadline Jan 29) | Everything run, failure analysis checked by hand, charts done |
+| CP4 | Feb 12 (hard deadline Feb 19) | 6-page paper in IEEE format |
 
-## Key references
+## Papers
 
-- Lindenbauer et al., 2025: *The Complexity Trap*. Masking vs summarization on SWE-bench Verified.
-- Yang et al., 2024: *SWE-agent*.
-- Wang et al., ICLR 2025: *OpenHands*.
-- Packer et al., 2023: *MemGPT*.
-- Liu et al., 2024: *Lost in the Middle*.
-- Jimenez et al., 2024: *SWE-bench*. SWE-bench Verified (OpenAI, 2024).
+- Lindenbauer et al. 2025, *The Complexity Trap*: masking vs summarization on SWE-bench Verified
+- Yang et al. 2024, *SWE-agent*
+- Wang et al., ICLR 2025, *OpenHands*
+- Packer et al. 2023, *MemGPT*
+- Liu et al. 2024, *Lost in the Middle*
+- Jimenez et al. 2024, *SWE-bench*. SWE-bench Verified is from OpenAI (2024)
 
-The rest of the literature review lives in the team's Project Ideation Doc.
-Every citation needs a link before it goes in the paper.
+The full lit review is in our Project Ideation Doc. Everything we cite in the paper needs a link.
