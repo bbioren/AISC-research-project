@@ -1,11 +1,11 @@
-"""Minimal bash-only agent loop (in the style of mini-swe-agent).
+"""A bare-bones agent that only uses bash, similar to mini-swe-agent.
 
-Each step the model replies with reasoning plus exactly one ```bash block. The
-command runs in the environment, its output becomes an observation, repeat.
-The agent finishes by running `submit`, and the final `git diff` is the patch.
+On each step the model writes some reasoning and one ```bash block. We run the
+command, its output becomes the next observation, and it keeps going until the
+model runs `submit`. Whatever `git diff` shows at that point is the patch.
 
-The loop is deliberately simple and identical across conditions: the ONLY thing
-that varies between experimental conditions is the ContextStrategy.
+It's kept simple on purpose, and it's the same for every condition. The context
+strategy is the only thing that changes between runs.
 """
 
 from __future__ import annotations
@@ -42,9 +42,9 @@ class RunResult:
     completion_tokens: int = 0
     cost: float = 0.0
     wall_time_s: float = 0.0
-    peak_context_tokens: int = 0  # largest single-request prompt
+    peak_context_tokens: int = 0  # biggest prompt sent in a single call
     history: list[dict] = field(default_factory=list)
-    views: list[dict] = field(default_factory=list)  # per-step: what was hidden/summarized
+    views: list[dict] = field(default_factory=list)  # what was hidden or summarized at each step
     recall_log: list[dict] = field(default_factory=list)
 
 

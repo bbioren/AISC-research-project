@@ -1,4 +1,4 @@
-"""Offline tests for the shared harness (agent loop, parsing, attribution). No keys/network/Docker."""
+"""Tests for the shared code (agent loop, parsing, failure analysis). No API keys, internet or Docker needed."""
 
 import subprocess
 

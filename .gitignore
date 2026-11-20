@@ -7,7 +7,7 @@ __pycache__/
 .ipynb_checkpoints/
 .DS_Store
 
-# Raw run outputs are large; commit summary.md / attribution.json / reports deliberately.
+# Raw run outputs are huge. Only commit summary.md, attribution.json and the reports, on purpose.
 results/*/*/
 results/**/*.predictions.jsonl
 logs/

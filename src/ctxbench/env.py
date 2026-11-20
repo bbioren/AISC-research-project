@@ -1,11 +1,13 @@
-"""Execution environments the agent's bash commands run in.
+"""Where the agent's bash commands actually run.
 
-* DockerEnv: one container per SWE-bench instance, repo at /testbed. This is the
-  real experimental setting. Image names follow the SWE-bench harness convention;
-  check `image_template` against the swebench version you install
-  (`python -m swebench.harness.prepare_images` can build/pull them).
-* LocalEnv: runs commands in a local directory. ONLY for smoke-testing the loop
-  on a toy repo -- never point it at your own files.
+DockerEnv starts one container per SWE-bench task, with the repo at /testbed.
+This is what the real experiments use. The image names are supposed to follow
+SWE-bench's naming, but double check `image_template` against whatever swebench
+version you installed. `python -m swebench.harness.prepare_images` can build or
+pull them.
+
+LocalEnv just runs commands in a folder on your machine. Only use it to try the
+loop out on a throwaway toy repo. Don't point it at anything you care about.
 """
 
 from __future__ import annotations
@@ -61,7 +63,7 @@ class DockerEnv(Environment):
         self.image = image_template.format(
             instance_id=instance_id,
             instance_id_lower=instance_id.lower(),
-            # Docker Hub images from the SWE-bench team encode "__" as "_1776_".
+            # The SWE-bench images on Docker Hub write "__" as "_1776_" in their names.
             instance_id_1776=instance_id.lower().replace("__", "_1776_"),
         )
         self.workdir = workdir

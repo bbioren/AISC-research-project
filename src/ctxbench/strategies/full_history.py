@@ -3,10 +3,10 @@ from ctxbench.strategies.base import ContextStrategy
 
 
 class FullHistory(ContextStrategy):
-    """Baseline: no context management. Everything is sent every step.
+    """The baseline. No context management, the model gets everything on every step.
 
-    This is the "conversation history" condition from the ideation doc, and the
-    reference point every other strategy's cost and success is compared to.
+    This is the "conversation history" option from the ideation doc. Every other
+    strategy gets compared to it on cost and on how many tasks it solves.
     """
 
     name = "full_history"

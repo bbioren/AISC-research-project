@@ -1,7 +1,7 @@
-"""Load a fixed, reproducible subset of SWE-bench Verified.
+"""Loading SWE-bench Verified and our task subset.
 
-The subset is sampled once with a fixed seed and written to configs/subset_<n>.txt
-so every condition (and every teammate) runs on exactly the same instances.
+We sample the subset once with a fixed seed and save it under configs/, so every
+condition and every person runs on exactly the same tasks.
 """
 
 from __future__ import annotations
@@ -32,5 +32,5 @@ def read_subset(path: Path) -> list[str]:
 
 
 def files_in_patch(patch: str) -> list[str]:
-    """Paths touched by a unified diff (used for failure attribution against the gold patch)."""
+    """Files a diff changes. The failure analysis uses this to compare against the correct patch."""
     return sorted({l[6:].strip() for l in patch.splitlines() if l.startswith("+++ b/")})

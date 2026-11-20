@@ -6,7 +6,7 @@ from ctxbench.strategies.hybrid import HybridMaskingSummarization
 from ctxbench.strategies.masking import ObservationMasking
 from ctxbench.strategies.summarization import LLMSummarization
 
-# Add new strategies here.
+# New strategies get added here.
 REGISTRY: dict[str, type[ContextStrategy]] = {
     "full_history": FullHistory,
     "masking": ObservationMasking,  # Assignment A
@@ -16,7 +16,7 @@ REGISTRY: dict[str, type[ContextStrategy]] = {
 
 
 def make_strategy(name: str, llm=None, **params) -> ContextStrategy:
-    """Build a strategy by name. Strategies whose constructor takes `llm` get one."""
+    """Makes a strategy from its name. If it takes an `llm` argument, it gets passed one."""
     cls = REGISTRY[name]
     if "llm" in inspect.signature(cls.__init__).parameters:
         return cls(llm=llm, **params)

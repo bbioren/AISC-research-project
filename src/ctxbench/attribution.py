@@ -1,21 +1,21 @@
-"""Failure attribution: did a run fail *because* information was hidden from the model?
+"""Failure analysis: did a run fail because the model couldn't see something anymore?
 
-This is the analysis the literature hasn't done (see README "Novelty"). The
-heuristics below are a first pass meant to be iterated on and validated by hand
-on a sample of trajectories -- treat the labels as candidates, not ground truth.
+As far as we can tell nobody has really done this analysis yet. The rules below
+are a rough first try. We need to check them by hand on a bunch of trajectories,
+so treat the labels as guesses until then.
 
-For each unresolved run we use the gold patch (from SWE-bench) to find which
-files actually needed editing, then ask, for each gold file:
+For each failed run we look at the correct patch from SWE-bench to see which
+files actually needed to change. Then for each of those files:
 
-  never_seen       -- no observation ever mentioned it. A search/localization
-                      failure; context management is not the cause.
-  seen_then_hidden -- it appeared in an observation, but by the last step every
-                      such observation was masked/summarized away, and the agent's
-                      patch does not touch it. Candidate information-loss failure.
-  seen_visible     -- it was still visible at the end. Not a context-loss failure.
+  never_seen       - no output ever mentioned it. The agent never found the right
+                     place, so context management isn't what went wrong.
+  seen_then_hidden - it showed up in some output, but by the last step all of that
+                     output had been masked or summarized, and the agent's patch
+                     doesn't touch the file. This one might be a lost-information failure.
+  seen_visible     - it was still visible at the end, so losing context wasn't the problem.
 
-We also count "rediscoveries": the agent re-running an earlier command after
-that command's output was hidden -- a direct measure of steps wasted by masking.
+We also count "rediscoveries", which is when the agent runs a command again after
+its earlier output got hidden. That's basically how many steps masking wasted.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ def attribute_run(run: dict, gold_patch: str) -> dict:
             label = "seen_visible"
         per_file[f] = {"label": label, "observations": seen}
 
-    # Rediscovery: an action whose command matches an earlier action whose output was hidden at that time.
+    # A rediscovery is the agent repeating an earlier command whose output was already hidden by then.
     actions = [t for t in history if t["kind"] == "action"]
     hidden_at = {v["step"]: set(v["hidden"]) for v in run["views"]}
     seen_cmds: dict[str, int] = {}

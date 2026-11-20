@@ -1,4 +1,4 @@
-"""Aggregate per-run JSON + SWE-bench evaluation reports into one results table."""
+"""Turns the saved runs and SWE-bench reports into one results table."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from statistics import mean, median
 
 
 def load_runs(run_dir: Path) -> dict[str, list[dict]]:
-    """{strategy: [run, ...]} from results/<run_name>/<strategy>/*.json"""
+    """Reads results/<run_name>/<strategy>/*.json and groups the runs by strategy."""
     out: dict[str, list[dict]] = {}
     for sdir in sorted(p for p in run_dir.iterdir() if p.is_dir()):
         runs = [json.loads(f.read_text()) for f in sorted(sdir.glob("*.json"))]
@@ -18,7 +18,7 @@ def load_runs(run_dir: Path) -> dict[str, list[dict]]:
 
 
 def load_resolved(report_path: Path | None) -> set[str] | None:
-    """SWE-bench harness report JSON -> set of resolved instance ids."""
+    """Gets the ids of the tasks that passed from a SWE-bench report."""
     if not report_path or not report_path.exists():
         return None
     return set(json.loads(report_path.read_text()).get("resolved_ids", []))

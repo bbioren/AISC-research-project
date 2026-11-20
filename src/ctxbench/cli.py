@@ -1,10 +1,10 @@
-"""Command-line entry point. Run `ctxbench -h` for the full list.
+"""The `ctxbench` command. `ctxbench -h` lists everything.
 
-  ctxbench subset   --n 50 --seed 0              # fix the instance subset (do once, commit it)
-  ctxbench run      configs/experiment.yaml      # run every strategy on every instance
-  ctxbench eval-cmd configs/experiment.yaml      # print the SWE-bench evaluation commands
-  ctxbench report   configs/experiment.yaml      # tokens / cost / resolve-rate table
-  ctxbench attribute configs/experiment.yaml     # failure attribution on unresolved runs
+  ctxbench subset   --n 50 --seed 0              # pick the task subset (only once, then commit it)
+  ctxbench run      configs/experiment.yaml      # run each strategy on each task
+  ctxbench eval-cmd configs/experiment.yaml      # print the commands for SWE-bench scoring
+  ctxbench report   configs/experiment.yaml      # table of tokens, cost and resolve rate
+  ctxbench attribute configs/experiment.yaml     # failure analysis on the runs that failed
 """
 
 from __future__ import annotations
@@ -63,19 +63,19 @@ def cmd_run(a):
         for iid in ids:
             out = out_dir / f"{iid}.json"
             if out.exists() and not a.overwrite:
-                continue  # resumable
+                continue  # already done, so reruns pick up where they left off
             strategy = make_strategy(name, llm=LLM(**cfg.get("summarizer_model", cfg["model"])), **params)
             agent = Agent(llm, strategy, **cfg.get("agent", {}))
             print(f"[{label}] {iid} ...", flush=True)
             try:
                 with DockerEnv(iid, cfg["image_template"]) as env:
                     res = agent.run(iid, by_id[iid]["problem_statement"], env)
-            except Exception as e:  # keep going; record the failure
+            except Exception as e:  # print it and move on to the next task
                 print(f"  error: {e}")
                 continue
             out.write_text(json.dumps(asdict(res)))
             print(f"  {res.exit_reason} steps={res.steps} tokens={res.prompt_tokens} cost=${res.cost:.3f}")
-        # (Re)write predictions file in SWE-bench format from all saved runs.
+        # Rebuild the predictions file SWE-bench needs from every run saved so far.
         with preds.open("w") as fh:
             for f in sorted(out_dir.glob("*.json")):
                 r = json.loads(f.read_text())
@@ -92,7 +92,7 @@ def cmd_eval_cmd(a):
             f"--dataset_name {cfg.get('dataset', 'princeton-nlp/SWE-bench_Verified')} "
             f"--predictions_path {preds.relative_to(ROOT)} --max_workers 4 --run_id {cfg['run_name']}__{label}"
         )
-    print("\n# Then copy each '<model>.<run_id>.json' report into results/<run_name>/reports/<label>.json")
+    print("\n# After these finish, copy each '<model>.<run_id>.json' report to results/<run_name>/reports/<label>.json")
 
 
 def _resolved(cfg, label):

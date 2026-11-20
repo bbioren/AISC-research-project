@@ -6,13 +6,13 @@ from ctxbench.messages import ContextView, Turn
 
 
 class ContextStrategy(ABC):
-    """Decides which view of the full trajectory the model sees on each step.
+    """Picks what part of the trajectory the model gets to see on each step.
 
-    Contract:
-      * `build_view` must always include the system prompt and the task statement.
-      * It must not mutate `history`.
-      * Anything not shown verbatim goes in `hidden_ids` / `summarized_ids`, so
-        attribution can reason about information loss.
+    Every strategy has to follow a few rules:
+      * `build_view` always includes the system prompt and the task.
+      * It never changes `history`.
+      * Anything the model doesn't see in full goes in `hidden_ids` or
+        `summarized_ids`. The failure analysis depends on this.
     """
 
     name: str = "base"
@@ -23,18 +23,18 @@ class ContextStrategy(ABC):
     @abstractmethod
     def build_view(self, history: list[Turn]) -> ContextView: ...
 
-    # Optional hook for strategies that expose extra agent commands (e.g. `recall`).
+    # Only needed if your strategy gives the agent extra commands, like a `recall` command.
     def handle_command(self, command: str, history: list[Turn]) -> str | None:
-        """Return an observation string if this strategy handles `command`, else None."""
+        """If this strategy handles `command`, return the output to show the agent. Otherwise return None."""
         return None
 
     def extra_instructions(self) -> str:
-        """Text appended to the system prompt describing strategy-specific commands."""
+        """Gets added to the system prompt. Use it to explain any extra commands your strategy adds."""
         return ""
 
 
 def pinned(history: list[Turn]) -> list[Turn]:
-    """System prompt + task statement: always visible under every strategy."""
+    """The system prompt and the task. Every strategy has to keep these visible."""
     return [t for t in history if t.kind in ("system", "task")]
 
 

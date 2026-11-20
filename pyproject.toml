@@ -1,7 +1,7 @@
 [project]
 name = "ctxbench"
 version = "0.1.0"
-description = "Controlled comparison of context-management strategies for coding agents on SWE-bench Verified"
+description = "Comparing context management strategies for coding agents on SWE-bench Verified"
 requires-python = ">=3.10"
 dependencies = [
     "litellm>=1.40",

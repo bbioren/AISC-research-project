@@ -1,7 +1,7 @@
-"""Rules EVERY context strategy must follow. Runs against everything in the registry.
+"""Rules that every strategy has to follow. These run on everything in the registry.
 
-Unimplemented strategies are skipped (not failed), so this file goes green as
-assignments land. Once yours is implemented, all of these must pass.
+Strategies that aren't written yet get skipped instead of failing, so more of
+these turn green as people finish. Once yours is done, all of them need to pass.
 """
 
 import copy

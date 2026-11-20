@@ -1,8 +1,8 @@
-"""Acceptance tests for each assignment, written as behavior (not implementation).
+"""Tests for each assignment. They check what your strategy does, not how you wrote it.
 
-These are a starting point. As you pin down the paper's exact settings, ADD
-tests for them here (e.g. "with window=W, exactly the last W observations are
-visible"). Skipped until the strategy is implemented.
+These are just to get you started. Once you know the paper's exact settings,
+add tests for them here, like "with window=W, only the last W observations are
+visible". They're skipped until your strategy exists.
 """
 
 import pytest
@@ -20,13 +20,13 @@ def view(name, history, **params):
         pytest.skip(f"{name} not implemented yet")
 
 
-# ---- A: masking --------------------------------------------------------------
+# A: masking
 def test_masking_keeps_most_recent_observation_and_hides_oldest(history_factory):
     h = history_factory(20)
     _, v, _ = view("masking", h)
     sent = "\n".join(m["content"] for m in v.messages)
-    assert h[-1].content in sent  # newest observation visible
-    assert "obs-1" in v.hidden_ids  # oldest hidden
+    assert h[-1].content in sent  # the newest one should still be visible
+    assert "obs-1" in v.hidden_ids  # the oldest one should be hidden
 
 
 def test_masking_keeps_actions(history_factory):
@@ -41,7 +41,7 @@ def test_masking_makes_no_llm_calls(history_factory):
     assert llm.calls == []
 
 
-# ---- B: summarization ----------------------------------------------------------
+# B: summarization
 def test_summarization_short_history_untouched(history_factory):
     _, v, llm = view("summarization", history_factory(1))
     assert llm.calls == [] and not v.summarized_ids
@@ -58,10 +58,10 @@ def test_summarization_not_called_every_step(history_factory):
     s, _, llm = view("summarization", history_factory(40))
     h = history_factory(41)
     s.build_view(h)
-    assert len(llm.calls) <= 1, "re-summarizing on every step makes summarization look far more expensive than it is"
+    assert len(llm.calls) <= 1, "summarizing again on every step makes summarization look way more expensive than it really is"
 
 
-# ---- C: third strategy -------------------------------------------------------------
+# C: third strategy
 def test_hybrid_compresses_long_history(history_factory):
     _, v, _ = view("hybrid", history_factory(40))
     assert v.hidden_ids or v.summarized_ids
