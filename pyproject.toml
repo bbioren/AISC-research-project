@@ -6,13 +6,11 @@ requires-python = ">=3.10"
 dependencies = [
     "litellm>=1.40",
     "datasets>=2.18",
-    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
-eval = ["swebench>=3.0"]
-analysis = ["pandas>=2.0", "matplotlib>=3.8", "jupyter"]
 dev = ["pytest>=8.0"]
+eval = ["swebench>=3.0"]
 
 [project.scripts]
 ctxbench = "ctxbench.cli:main"

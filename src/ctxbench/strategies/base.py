@@ -1,42 +1,26 @@
-from __future__ import annotations
-
-from abc import ABC, abstractmethod
-
 from ctxbench.messages import ContextView, Turn
 
 
-class ContextStrategy(ABC):
-    """Picks what part of the trajectory the model gets to see on each step.
+class ContextStrategy:
+    """Picks what part of the history the model sees on each step.
 
-    Every strategy has to follow a few rules:
-      * `build_view` always includes the system prompt and the task.
-      * It never changes `history`.
-      * Anything the model doesn't see in full goes in `hidden_ids` or
-        `summarized_ids`. The failure analysis depends on this.
+    Rules every strategy follows (tests/test_strategies.py checks them):
+      * always include the system prompt and the task, first
+      * never change `history`
+      * put every observation the model can't see in full in `hidden_ids`
     """
 
-    name: str = "base"
+    name = "base"
 
-    def __init__(self, **kwargs):
-        self.config = kwargs
-
-    @abstractmethod
-    def build_view(self, history: list[Turn]) -> ContextView: ...
-
-    # Only needed if your strategy gives the agent extra commands, like a `recall` command.
-    def handle_command(self, command: str, history: list[Turn]) -> str | None:
-        """If this strategy handles `command`, return the output to show the agent. Otherwise return None."""
-        return None
-
-    def extra_instructions(self) -> str:
-        """Gets added to the system prompt. Use it to explain any extra commands your strategy adds."""
-        return ""
+    def build_view(self, history: list[Turn]) -> ContextView:
+        raise NotImplementedError
 
 
-def pinned(history: list[Turn]) -> list[Turn]:
-    """The system prompt and the task. Every strategy has to keep these visible."""
+def pinned(history):
+    """The system prompt and the task."""
     return [t for t in history if t.kind in ("system", "task")]
 
 
-def body(history: list[Turn]) -> list[Turn]:
+def body(history):
+    """Everything after the system prompt and the task."""
     return [t for t in history if t.kind not in ("system", "task")]

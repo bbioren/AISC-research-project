@@ -1,52 +1,40 @@
-"""Small wrapper around the model. It goes through LiteLLM, so you can switch
-providers just by changing the model string ("gpt-4o-mini", "claude-haiku-4-5",
-"openrouter/..."). It also keeps track of tokens and cost."""
-
-from __future__ import annotations
+"""Calls the model through LiteLLM, so any provider works by changing the model name."""
 
 from dataclasses import dataclass
-from typing import Callable
 
 
 @dataclass
-class LLMResponse:
+class Response:
     text: str
+    tokens: int  # prompt + completion
     prompt_tokens: int
-    completion_tokens: int
     cost: float
 
 
 class LLM:
-    def __init__(self, model: str, temperature: float = 0.0, max_tokens: int = 2048):
-        self.model, self.temperature, self.max_tokens = model, temperature, max_tokens
+    def __init__(self, model):
+        self.model = model
 
-    def complete(self, messages: list[dict]) -> LLMResponse:
-        import litellm  # imported here so the tests don't need litellm installed
+    def complete(self, messages):
+        import litellm  # imported here so the tests don't need it
 
-        r = litellm.completion(
-            model=self.model, messages=messages, temperature=self.temperature, max_tokens=self.max_tokens
-        )
+        r = litellm.completion(model=self.model, messages=messages, temperature=0.0)
         try:
-            cost = float(litellm.completion_cost(completion_response=r))
+            cost = litellm.completion_cost(completion_response=r)
         except Exception:
-            cost = 0.0  # LiteLLM doesn't know this model's price, but we still have the tokens
-        return LLMResponse(
-            text=r.choices[0].message.content or "",
-            prompt_tokens=r.usage.prompt_tokens,
-            completion_tokens=r.usage.completion_tokens,
-            cost=cost,
-        )
+            cost = 0.0  # LiteLLM doesn't know this model's price
+        return Response(r.choices[0].message.content or "", r.usage.total_tokens, r.usage.prompt_tokens, cost)
 
 
-class ScriptedLLM(LLM):
-    """Fake model for tests. It just plays back a list of replies you give it, or calls a function."""
+class FakeLLM:
+    """For tests and show-view. Replies with whatever `reply(messages)` returns."""
 
-    def __init__(self, replies: list[str] | Callable[[list[dict]], str]):
-        super().__init__(model="scripted")
-        self.replies, self.calls = replies, []
+    def __init__(self, reply):
+        self.reply = reply
+        self.calls = []
 
-    def complete(self, messages: list[dict]) -> LLMResponse:
+    def complete(self, messages):
         self.calls.append(messages)
-        text = self.replies(messages) if callable(self.replies) else self.replies[len(self.calls) - 1]
-        prompt_tokens = sum(len(m["content"]) for m in messages) // 4  # about 4 characters per token, close enough for tests
-        return LLMResponse(text=text, prompt_tokens=prompt_tokens, completion_tokens=len(text) // 4, cost=0.0)
+        prompt = sum(len(m["content"]) for m in messages) // 4  # roughly 4 characters per token
+        text = self.reply(messages)
+        return Response(text, prompt + len(text) // 4, prompt, 0.0)

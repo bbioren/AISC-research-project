@@ -1,34 +1,21 @@
-"""Assignment A: observation masking.
+"""A: observation masking.
 
-Papers:
-  * Yang et al. 2024, "SWE-agent: Agent-Computer Interfaces Enable Automated
-    Software Engineering". This is where collapsing old observations started.
-  * Lindenbauer et al. 2025, "The Complexity Trap". Their masking baseline is the
-    one we're reproducing (they compare it to summarization on SWE-bench Verified).
-
-Write build_view so it does what The Complexity Trap's masking did, as close as
-our setup allows. Things to find in the paper (and their code if it's out):
-  - how many recent observations stay visible, and how they count them
-  - what text replaces an observation once it's hidden
-  - whether they ever hide the agent's actions/reasoning or only command output
-Put each setting and where you found it (page/section) in docs/assignments/A_masking.md.
-
-tests/test_contract.py checks that you:
-  - don't modify `history`; return a new ContextView instead
-  - always keep the system prompt and task visible (use `pinned`)
-  - list every observation you don't show in full in `ContextView.hidden_ids`
+Papers: SWE-agent (Yang et al. 2024) and The Complexity Trap (Lindenbauer et al. 2025).
+Match what The Complexity Trap did. Find out, with page numbers:
+  - how many recent observations stay visible
+  - what text replaces a hidden one
+  - whether only command output gets hidden, or the model's own replies too
 """
 
-from ctxbench.messages import ContextView, Turn
-from ctxbench.strategies.base import ContextStrategy, body, pinned  # noqa: F401  (you'll need these)
+from ctxbench.messages import ContextView
+from ctxbench.strategies.base import ContextStrategy, body, pinned  # noqa: F401
 
 
 class ObservationMasking(ContextStrategy):
     name = "masking"
 
-    def __init__(self, window: int = 5, **kwargs):
-        super().__init__(window=window, **kwargs)
+    def __init__(self, window=5):
         self.window = window
 
-    def build_view(self, history: list[Turn]) -> ContextView:
-        raise NotImplementedError("Assignment A: implement observation masking (see the comment at the top).")
+    def build_view(self, history):
+        raise NotImplementedError("A: write this")

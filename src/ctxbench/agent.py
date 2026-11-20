@@ -1,131 +1,62 @@
-"""A bare-bones agent that only uses bash, similar to mini-swe-agent.
+"""The agent loop. Same for every strategy; the strategy is the only thing that changes.
 
-On each step the model writes some reasoning and one ```bash block. We run the
-command, its output becomes the next observation, and it keeps going until the
-model runs `submit`. Whatever `git diff` shows at that point is the patch.
-
-It's kept simple on purpose, and it's the same for every condition. The context
-strategy is the only thing that changes between runs.
+Each step: the strategy picks what the model sees, the model replies with one
+```bash block, we run it, and the output becomes the next observation. It stops
+when the model says `submit` (or runs out of steps or money). The final
+`git diff` is the patch.
 """
 
-from __future__ import annotations
-
 import re
-import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 
-from ctxbench.env import Environment
-from ctxbench.llm import LLM
 from ctxbench.messages import Turn
-from ctxbench.strategies.base import ContextStrategy
 
 SYSTEM_PROMPT = """You are a software engineer fixing an issue in the repository in your current directory.
 Work step by step. In every reply, think briefly, then give EXACTLY ONE shell command in a ```bash block.
 You only see command output, so use commands like `grep -rn`, `sed -n '1,80p' file`, `python -c`, and
 write edits with `sed -i`, `cat <<'EOF' > file`, or a small python script.
-Do not modify test files. When the issue is fixed, reply with the command `submit` on its own.
-{extra}"""
-
-TASK_TEMPLATE = "Resolve this GitHub issue:\n\n{problem_statement}"
-
-_BASH = re.compile(r"```(?:bash|sh)\s*\n(.*?)```", re.S)
+Do not modify test files. When the issue is fixed, reply with the command `submit` on its own."""
 
 
-@dataclass
-class RunResult:
-    instance_id: str
-    strategy: str
-    patch: str
-    exit_reason: str  # submitted | step_limit | cost_limit | format_errors | error
-    steps: int
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    cost: float = 0.0
-    wall_time_s: float = 0.0
-    peak_context_tokens: int = 0  # biggest prompt sent in a single call
-    history: list[dict] = field(default_factory=list)
-    views: list[dict] = field(default_factory=list)  # what was hidden or summarized at each step
-    recall_log: list[dict] = field(default_factory=list)
-
-
-def parse_command(text: str) -> str | None:
-    blocks = _BASH.findall(text)
+def parse_command(text):
+    blocks = re.findall(r"```(?:bash|sh)\s*\n(.*?)```", text, re.S)
     if len(blocks) == 1:
         return blocks[0].strip()
-    if not blocks and text.strip().splitlines()[-1:] == ["submit"]:
+    if not blocks and text.strip().endswith("submit"):
         return "submit"
     return None
 
 
-def truncate(output: str, max_chars: int) -> str:
-    if len(output) <= max_chars:
-        return output
-    half = max_chars // 2
-    return f"{output[:half]}\n[... {len(output) - max_chars} chars truncated ...]\n{output[-half:]}"
+def run_agent(llm, strategy, env, task, max_steps=50, max_cost=1.0, max_output_chars=10_000):
+    history = [Turn("system", SYSTEM_PROMPT, "system", 0, "system"), Turn("user", task, "task", 0, "task")]
+    result = {"exit": "max_steps", "steps": 0, "tokens": 0, "cost": 0.0, "peak_prompt_tokens": 0, "hidden_per_step": []}
 
+    for step in range(1, max_steps + 1):
+        result["steps"] = step
+        view = strategy.build_view(history)
+        reply = llm.complete(view.messages)
+        result["tokens"] += reply.tokens + view.extra_tokens
+        result["cost"] += reply.cost + view.extra_cost
+        result["peak_prompt_tokens"] = max(result["peak_prompt_tokens"], reply.prompt_tokens)
+        result["hidden_per_step"].append(view.hidden_ids)
+        history.append(Turn("assistant", reply.text, "action", step, f"act-{step}"))
 
-class Agent:
-    def __init__(
-        self,
-        llm: LLM,
-        strategy: ContextStrategy,
-        step_limit: int = 50,
-        cost_limit: float = 1.0,
-        obs_max_chars: int = 10_000,
-        cmd_timeout: int = 120,
-        max_format_errors: int = 3,
-    ):
-        self.llm, self.strategy = llm, strategy
-        self.step_limit, self.cost_limit = step_limit, cost_limit
-        self.obs_max_chars, self.cmd_timeout, self.max_format_errors = obs_max_chars, cmd_timeout, max_format_errors
+        if result["cost"] > max_cost:
+            result["exit"] = "max_cost"
+            break
+        command = parse_command(reply.text)
+        if command == "submit":
+            result["exit"] = "submitted"
+            break
+        if command is None:
+            output = "Reply with exactly one ```bash block."
+        else:
+            code, output = env.run(command)
+            output = f"(exit code {code})\n{output}"
+            if len(output) > max_output_chars:
+                output = output[: max_output_chars // 2] + "\n[... cut ...]\n" + output[-max_output_chars // 2 :]
+        history.append(Turn("user", output, "observation", step, f"obs-{step}"))
 
-    def run(self, instance_id: str, problem_statement: str, env: Environment) -> RunResult:
-        t0 = time.time()
-        sys_prompt = SYSTEM_PROMPT.format(extra=self.strategy.extra_instructions())
-        history = [
-            Turn("system", sys_prompt, "system", 0, "system"),
-            Turn("user", TASK_TEMPLATE.format(problem_statement=problem_statement), "task", 0, "task"),
-        ]
-        res = RunResult(instance_id, self.strategy.name, patch="", exit_reason="step_limit", steps=0)
-        format_errors = 0
-
-        for step in range(1, self.step_limit + 1):
-            res.steps = step
-            view = self.strategy.build_view(history)
-            res.views.append({"step": step, "hidden": view.hidden_ids, "summarized": view.summarized_ids})
-            resp = self.llm.complete(view.messages)
-            res.prompt_tokens += resp.prompt_tokens + view.extra_prompt_tokens
-            res.completion_tokens += resp.completion_tokens + view.extra_completion_tokens
-            res.cost += resp.cost + view.extra_cost
-            res.peak_context_tokens = max(res.peak_context_tokens, resp.prompt_tokens)
-            history.append(Turn("assistant", resp.text, "action", step, f"act-{step}"))
-
-            if res.cost > self.cost_limit:
-                res.exit_reason = "cost_limit"
-                break
-
-            cmd = parse_command(resp.text)
-            if cmd is None:
-                format_errors += 1
-                history.append(Turn("user", "Reply with exactly one ```bash block.", "note", step, f"note-{step}"))
-                if format_errors >= self.max_format_errors:
-                    res.exit_reason = "format_errors"
-                    break
-                continue
-            if cmd == "submit":
-                res.exit_reason = "submitted"
-                break
-
-            special = self.strategy.handle_command(cmd, history)
-            if special is not None:
-                out = special
-            else:
-                r = env.execute(cmd, timeout=self.cmd_timeout)
-                out = f"(exit code {r.returncode})\n{r.output}"
-            history.append(Turn("user", truncate(out, self.obs_max_chars), "observation", step, f"obs-{step}"))
-
-        res.patch = env.diff()
-        res.wall_time_s = time.time() - t0
-        res.history = [asdict(t) for t in history]
-        res.recall_log = list(getattr(self.strategy, "recall_log", []))
-        return res
+    result["patch"] = env.run("git diff")[1]
+    result["history"] = [asdict(t) for t in history]
+    return result

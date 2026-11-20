@@ -1,205 +1,92 @@
-"""The `ctxbench` command. `ctxbench -h` lists everything.
+"""The `ctxbench` command.
 
-  ctxbench subset   --n 50 --seed 0              # pick the task subset (only once, then commit it)
-  ctxbench run      configs/experiment.yaml      # run each strategy on each task
-  ctxbench eval-cmd configs/experiment.yaml      # print the commands for SWE-bench scoring
-  ctxbench report   configs/experiment.yaml      # table of tokens, cost and resolve rate
-  ctxbench attribute configs/experiment.yaml     # failure analysis on the runs that failed
+  ctxbench show-view --strategy masking          # what a strategy sends the model, on a fake history
+  ctxbench run --strategy masking --limit 2      # run the agent on real SWE-bench tasks (needs Docker + API key)
 """
-
-from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import asdict
+import os
 from pathlib import Path
 
-import yaml
+from ctxbench.llm import LLM, FakeLLM
+from ctxbench.messages import Turn
+from ctxbench.strategies import STRATEGIES
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def load_config(path: str) -> dict:
-    cfg = yaml.safe_load(Path(path).read_text())
-    cfg.setdefault("results_dir", "results")
-    return cfg
-
-
-def run_dir(cfg: dict) -> Path:
-    return ROOT / cfg["results_dir"] / cfg["run_name"]
-
-
-def cmd_subset(a):
-    from ctxbench.data import make_subset
-
-    out = ROOT / "configs" / f"subset_{a.n}_seed{a.seed}.txt"
-    ids = make_subset(a.n, a.seed, out)
-    print(f"wrote {len(ids)} instance ids to {out.relative_to(ROOT)}")
-
-
-def cmd_run(a):
-    from ctxbench.agent import Agent
-    from ctxbench.data import load_instances, read_subset
-    from ctxbench.env import DockerEnv
-    from ctxbench.llm import LLM
-    from ctxbench.strategies import make_strategy
-
-    cfg = load_config(a.config)
-    ids = read_subset(ROOT / cfg["subset"])
-    if a.limit:
-        ids = ids[: a.limit]
-    by_id = {r["instance_id"]: r for r in load_instances(cfg.get("dataset", "princeton-nlp/SWE-bench_Verified"))}
-    llm = LLM(**cfg["model"])
-    only = set(a.strategy or [])
-
-    for s in cfg["strategies"]:
-        name, params = s["name"], s.get("params", {})
-        label = s.get("label", name)
-        if only and label not in only:
-            continue
-        out_dir = run_dir(cfg) / label
-        out_dir.mkdir(parents=True, exist_ok=True)
-        preds = out_dir.parent / f"{label}.predictions.jsonl"
-        for iid in ids:
-            out = out_dir / f"{iid}.json"
-            if out.exists() and not a.overwrite:
-                continue  # already done, so reruns pick up where they left off
-            strategy = make_strategy(name, llm=LLM(**cfg.get("summarizer_model", cfg["model"])), **params)
-            agent = Agent(llm, strategy, **cfg.get("agent", {}))
-            print(f"[{label}] {iid} ...", flush=True)
-            try:
-                with DockerEnv(iid, cfg["image_template"]) as env:
-                    res = agent.run(iid, by_id[iid]["problem_statement"], env)
-            except Exception as e:  # print it and move on to the next task
-                print(f"  error: {e}")
-                continue
-            out.write_text(json.dumps(asdict(res)))
-            print(f"  {res.exit_reason} steps={res.steps} tokens={res.prompt_tokens} cost=${res.cost:.3f}")
-        # Rebuild the predictions file SWE-bench needs from every run saved so far.
-        with preds.open("w") as fh:
-            for f in sorted(out_dir.glob("*.json")):
-                r = json.loads(f.read_text())
-                fh.write(json.dumps({"instance_id": r["instance_id"], "model_name_or_path": f"{cfg['run_name']}__{label}", "model_patch": r["patch"]}) + "\n")
-
-
-def cmd_eval_cmd(a):
-    cfg = load_config(a.config)
-    for s in cfg["strategies"]:
-        label = s.get("label", s["name"])
-        preds = run_dir(cfg) / f"{label}.predictions.jsonl"
-        print(
-            "python -m swebench.harness.run_evaluation "
-            f"--dataset_name {cfg.get('dataset', 'princeton-nlp/SWE-bench_Verified')} "
-            f"--predictions_path {preds.relative_to(ROOT)} --max_workers 4 --run_id {cfg['run_name']}__{label}"
-        )
-    print("\n# After these finish, copy each '<model>.<run_id>.json' report to results/<run_name>/reports/<label>.json")
-
-
-def _resolved(cfg, label):
-    from ctxbench.metrics import load_resolved
-
-    return load_resolved(run_dir(cfg) / "reports" / f"{label}.json")
-
-
-def cmd_report(a):
-    from ctxbench.metrics import load_runs, summarize, to_markdown
-
-    cfg = load_config(a.config)
-    runs = load_runs(run_dir(cfg))
-    table = {label: summarize(rs, _resolved(cfg, label)) for label, rs in runs.items()}
-    md = to_markdown(table)
-    print(md)
-    (run_dir(cfg) / "summary.md").write_text(md + "\n")
-
-
-def cmd_attribute(a):
-    from collections import Counter
-
-    from ctxbench.attribution import attribute_run
-    from ctxbench.data import load_instances
-    from ctxbench.metrics import load_runs
-
-    cfg = load_config(a.config)
-    gold = {r["instance_id"]: r["patch"] for r in load_instances(cfg.get("dataset", "princeton-nlp/SWE-bench_Verified"))}
-    out = []
-    for label, rs in load_runs(run_dir(cfg)).items():
-        resolved = _resolved(cfg, label) or set()
-        rows = [attribute_run(r, gold[r["instance_id"]]) for r in rs if r["instance_id"] not in resolved]
-        labels = Counter(v["label"] for row in rows for v in row["gold_files"].values())
-        print(f"{label}: {len(rows)} unresolved, info-loss candidates={sum(r['info_loss_candidate'] for r in rows)}, "
-              f"rediscoveries={sum(r['rediscoveries'] for r in rows)}, gold-file labels={dict(labels)}")
-        out += rows
-    (run_dir(cfg) / "attribution.json").write_text(json.dumps(out, indent=1))
-
-
-def fake_history(n_steps: int, obs_lines: int = 3):
-    """A made-up trajectory for trying out strategies: each step reads a file and gets its contents back."""
-    from ctxbench.messages import Turn
-
-    h = [Turn("system", "SYSTEM PROMPT", "system", 0, "system"), Turn("user", "TASK: fix the bug in utils.py", "task", 0, "task")]
-    for s in range(1, n_steps + 1):
-        h.append(Turn("assistant", f"Let me look at file{s}.py\n```bash\ncat file{s}.py\n```", "action", s, f"act-{s}"))
-        lines = "\n".join(f"file{s}.py:{i}: some code" for i in range(1, obs_lines + 1))
-        h.append(Turn("user", f"(exit code 0)\n{lines}", "observation", s, f"obs-{s}"))
+def fake_history(steps):
+    h = [Turn("system", "SYSTEM PROMPT", "system", 0, "system"), Turn("user", "TASK: fix the bug", "task", 0, "task")]
+    for s in range(1, steps + 1):
+        h.append(Turn("assistant", f"```bash\ncat file{s}.py\n```", "action", s, f"act-{s}"))
+        h.append(Turn("user", f"(exit code 0)\ncontents of file{s}.py", "observation", s, f"obs-{s}"))
     return h
 
 
-def cmd_show_view(a):
-    import ast
-
-    from ctxbench.llm import ScriptedLLM
-    from ctxbench.strategies import make_strategy
-
-    params = {}
-    for kv in a.param:
-        k, _, v = kv.partition("=")
-        try:
-            params[k] = ast.literal_eval(v)
-        except (ValueError, SyntaxError):
-            params[k] = v
-    llm = ScriptedLLM(lambda msgs: "<summary would go here>")
-    strategy = make_strategy(a.strategy, llm=llm, **params)
-    history = fake_history(a.steps, a.obs_lines)
-    try:
-        view = strategy.build_view(history)
-    except NotImplementedError as e:
-        print(f"{a.strategy} isn't implemented yet: {e}")
-        return
-    print(f"history: {len(history)} turns, {sum(len(t.content) for t in history)} chars")
-    print(f"sent:    {len(view.messages)} messages, {sum(len(m['content']) for m in view.messages)} chars")
-    print(f"hidden: {view.hidden_ids}\nsummarized: {view.summarized_ids}")
-    print(f"extra tokens charged: {view.extra_prompt_tokens} prompt / {view.extra_completion_tokens} completion\n")
+def show_view(args):
+    strategy = STRATEGIES[args.strategy](FakeLLM(lambda m: "<a summary would go here>"))
+    history = fake_history(args.steps)
+    view = strategy.build_view(history)
+    print(f"history has {len(history)} turns, the model gets sent {len(view.messages)} messages")
+    print(f"hidden: {view.hidden_ids}   extra tokens: {view.extra_tokens}\n")
     for i, m in enumerate(view.messages):
-        preview = m["content"].replace("\n", " | ")
-        print(f"[{i:>2}] {m['role']:<9} {preview[:100]}" + ("..." if len(preview) > 100 else ""))
+        print(f"[{i:>2}] {m['role']:<9} {m['content'].replace(chr(10), ' | ')[:100]}")
 
 
-def load_dotenv(path: Path = ROOT / ".env") -> None:
-    import os
+def run(args):
+    from ctxbench.agent import run_agent
+    from ctxbench.data import load_tasks
+    from ctxbench.env import DockerEnv
 
-    if path.exists():
-        for line in path.read_text().splitlines():
-            k, sep, v = line.partition("=")
-            if sep and not k.strip().startswith("#") and v.strip():
-                os.environ.setdefault(k.strip(), v.strip())
+    llm = LLM(args.model)
+    out_dir = ROOT / "results" / args.strategy
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for task in load_tasks()[: args.limit]:
+        out = out_dir / f"{task['instance_id']}.json"
+        if out.exists():
+            continue  # already done, so a rerun picks up where it left off
+        print(task["instance_id"], flush=True)
+        env = DockerEnv(task["instance_id"])
+        try:
+            result = run_agent(llm, STRATEGIES[args.strategy](llm), env, task["problem_statement"])
+        finally:
+            env.close()
+        result["instance_id"] = task["instance_id"]
+        out.write_text(json.dumps(result))
+        print(f"  {result['exit']}, {result['steps']} steps, {result['tokens']} tokens, ${result['cost']:.3f}")
+
+    # SWE-bench wants all the patches in one file
+    preds = ROOT / "results" / f"{args.strategy}.jsonl"
+    with preds.open("w") as f:
+        for p in sorted(out_dir.glob("*.json")):
+            r = json.loads(p.read_text())
+            f.write(json.dumps({"instance_id": r["instance_id"], "model_name_or_path": args.strategy, "model_patch": r["patch"]}) + "\n")
+    print(f"\nTo score: python -m swebench.harness.run_evaluation --dataset_name princeton-nlp/SWE-bench_Verified "
+          f"--predictions_path {preds.relative_to(ROOT)} --max_workers 4 --run_id {args.strategy}")
 
 
 def main():
-    load_dotenv()
+    env_file = ROOT / ".env"  # API keys
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            key, _, value = line.partition("=")
+            if value.strip() and not key.startswith("#"):
+                os.environ.setdefault(key.strip(), value.strip())
+
     p = argparse.ArgumentParser(prog="ctxbench")
     sub = p.add_subparsers(required=True)
-    s = sub.add_parser("subset"); s.add_argument("--n", type=int, default=50); s.add_argument("--seed", type=int, default=0); s.set_defaults(f=cmd_subset)
-    s = sub.add_parser("run"); s.add_argument("config"); s.add_argument("--limit", type=int); s.add_argument("--strategy", action="append"); s.add_argument("--overwrite", action="store_true"); s.set_defaults(f=cmd_run)
-    s = sub.add_parser("eval-cmd"); s.add_argument("config"); s.set_defaults(f=cmd_eval_cmd)
-    s = sub.add_parser("report"); s.add_argument("config"); s.set_defaults(f=cmd_report)
-    s = sub.add_parser("attribute"); s.add_argument("config"); s.set_defaults(f=cmd_attribute)
-    s = sub.add_parser("show-view", help="print what a strategy sends the model on a fake history (no Docker/API key)")
-    s.add_argument("--strategy", default="full_history"); s.add_argument("--steps", type=int, default=12)
-    s.add_argument("--obs-lines", type=int, default=3)
-    s.add_argument("--param", action="append", default=[], help="strategy param, e.g. --param window=3")
-    s.set_defaults(f=cmd_show_view)
-    a = p.parse_args()
-    a.f(a)
+    s = sub.add_parser("show-view")
+    s.add_argument("--strategy", default="full_history", choices=STRATEGIES)
+    s.add_argument("--steps", type=int, default=10)
+    s.set_defaults(f=show_view)
+    s = sub.add_parser("run")
+    s.add_argument("--strategy", required=True, choices=STRATEGIES)
+    s.add_argument("--limit", type=int, default=50)
+    s.add_argument("--model", default="gpt-4o-mini")
+    s.set_defaults(f=run)
+    args = p.parse_args()
+    args.f(args)
 
 
 if __name__ == "__main__":
